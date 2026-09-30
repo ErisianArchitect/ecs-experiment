@@ -170,18 +170,7 @@ struct Outbox<'a> {
 
 
 fn foo() {
-    fn example_system<'a, 'b, 'c>(
-        _a: ResMut<'a, u64>,
-        _b: (
-            ResMut<'b, u64>,
-            ResMut<'c, u64>,
-        )
-    ) {
-        // _b.a = &*_a;
-    }
-    // to_system(example_system);
     to_system(|| {});
     to_system(|_a: ResMut<u64>| {});
-    // to_system(|_a: ResMut<u64>, _dual: (ResMut<'_, u64>, ResMut<'_, u64>)| {});
     to_system(|_a: ResMut<u64>, _b: ResMut<u64>| {});
 }
