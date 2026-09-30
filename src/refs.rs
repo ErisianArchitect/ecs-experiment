@@ -67,7 +67,7 @@ impl<'a, 'b, T: 'static + Sized> std::ops::DerefMut for ResMut<'a, T> {
     }
 }
 
-struct Archetype<F, Marker>
+pub struct Archetype<F, Marker>
 where
     F: 'static,
     // Marker,
@@ -77,20 +77,16 @@ where
     _marker: PhantomData<(Marker,)>,
 }
 
-trait System
+pub trait System
 where
     Self: 'static,
  {
     fn run(&mut self);
 }
 
-trait SameType<T>: Sized {}
+pub struct World;
 
-impl<T> SameType<T> for T {}
-
-struct World;
-
-trait SystemParam: Sized {
+pub trait SystemParam: Sized {
     type Resolved<'a>;
     fn resolve<'w>(world: &'w World) -> Self::Resolved<'w>;
 }
@@ -109,11 +105,27 @@ where
     fn run(&mut self) {}
 }
 
+impl<F, C: Capture> System for Archetype<F, (Captures<C>,)>
+where
+    F: Fn(Captures<C>),
+{
+    fn run(&mut self) {}
+}
+
 impl<F, T0> System for Archetype<F, (T0,)>
 where
     T0: SystemParam + 'static,
     F: Fn(T0),
     F: for<'t0> Fn(T0::Resolved<'t0>),
+{
+    fn run(&mut self) {}
+}
+
+impl<F, T0, C: Capture> System for Archetype<F, (T0, Captures<C>)>
+where
+    T0: SystemParam + 'static,
+    F: Fn(T0, Captures<C>),
+    F: for<'t0> Fn(T0::Resolved<'t0>, Captures<C>),
 {
     fn run(&mut self) {}
 }
@@ -128,11 +140,21 @@ where
     fn run(&mut self) {}
 }
 
+impl<F, T0, T1, C: Capture> System for Archetype<F, (T0, T1, Captures<C>)>
+where
+    T0: SystemParam + 'static,
+    T1: SystemParam + 'static,
+    F: Fn(T0, T1, Captures<C>),
+    F: for<'t0, 't1> Fn(T0::Resolved<'t0>, T1::Resolved<'t1>, Captures<C>),
+{
+    fn run(&mut self) {}
+}
+
 pub struct SystemMarker<Marker> {
     _marker: PhantomData<(fn(Marker),)>,
 }
 
-trait IntoSystem<Marker>: 'static
+pub trait IntoSystem<Marker>: 'static
 where
     Self::System: System,
 {
@@ -155,7 +177,7 @@ where
     }
 }
 
-fn to_system<Marker, F>(_f: F)
+pub fn to_system<Marker, F>(_f: F)
 where
     F: 'static,
     F: IntoSystem<Marker>,
@@ -163,14 +185,52 @@ where
     todo!()
 }
 
-struct Outbox<'a> {
+pub struct Outbox<'a> {
     a: &'a u64,
 }
 
+pub trait EntityMarker: 'static + Sized {}
 
+pub struct Delete;
+pub struct NoCollide;
+
+impl EntityMarker for Delete {}
+impl EntityMarker for NoCollide {}
+
+pub trait Capture: 'static + Sized {}
+
+pub struct With<T: EntityMarker>(PhantomData<fn(T)>);
+pub struct Without<T: EntityMarker>(PhantomData<fn(T)>);
+
+impl<T: EntityMarker> Capture for With<T> {}
+impl<T: EntityMarker> Capture for Without<T> {}
+
+impl Capture for () {}
+
+impl<T0: Capture> Capture for (T0,) {}
+
+impl<T0, T1> Capture for (T0, T1)
+where T0: Capture, T1: Capture {}
+
+impl<T0, T1, T2> Capture for (T0, T1, T2)
+where
+    T0: Capture,
+    T1: Capture,
+    T2: Capture,
+{}
+
+impl<T0, T1, T2, T3> Capture for (T0, T1, T2, T3)
+where
+    T0: Capture,
+    T1: Capture,
+    T2: Capture,
+    T3: Capture,
+{}
+
+pub struct Captures<C: Capture = ()>(PhantomData<fn(C)>);
 
 fn foo() {
     to_system(|| {});
-    to_system(|_a: ResMut<u64>| {});
+    to_system(|_a: ResMut<u64>, _: Captures<(With<Delete>, Without<NoCollide>)>| {});
     to_system(|_a: ResMut<u64>, _b: ResMut<u64>| {});
 }
